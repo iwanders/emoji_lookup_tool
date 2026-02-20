@@ -1,0 +1,12 @@
+[package]
+name = "emoji_lookup_tool"
+version = "0.1.0"
+edition = "2024"
+authors = ["Ivor Wanders <ivor@iwanders.net>"]
+license = "MIT"
+
+[dependencies]
+
+clap = {version = "4.5", features=["derive"]}
+serde_json = "1.0.149"
+serde = {version="1.0.228", features=["derive"]}
