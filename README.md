@@ -9,6 +9,9 @@ $ cargo r -- search party
 ...
 ```
 
+Uses data from [https://github.com/iamcal/emoji-data](https://github.com/iamcal/emoji-data), so slack short names, but
+search also matches against the unicode `name` field.
+
 
 
 # License

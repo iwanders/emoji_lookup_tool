@@ -14,6 +14,8 @@ struct Entry {
     short_name: &'static str,
     short_names: Vec<&'static str>,
     unified: &'static str,
+    category: &'static str,
+    subcategory: &'static str,
 }
 impl Entry {
     pub fn contains_needle(&self, name: &str) -> bool {
@@ -22,7 +24,7 @@ impl Entry {
                 return true;
             }
         }
-        if self.short_name.to_ascii_lowercase().contains(name) {
+        if self.name.to_ascii_lowercase().contains(name) {
             return true;
         }
         false
@@ -36,6 +38,14 @@ impl Entry {
         }
         z
     }
+
+    pub fn sort_category_subcategory_name(left: &Self, right: &Self) -> std::cmp::Ordering {
+        (left.category, left.subcategory, &left.name).cmp(&(
+            right.category,
+            right.subcategory,
+            &right.name,
+        ))
+    }
 }
 
 #[derive(Parser)]
@@ -48,8 +58,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Search emoji's.
+    /// Search emoji's, matching by the provided string in name and short names.
     Search { name: String },
+    /// Dump the entire emoji list, because why not, then you can grep to your heart's content.
+    List,
+}
+
+fn parsed() -> Vec<Entry> {
+    serde_json::from_str(EMOJI_DATA).unwrap()
 }
 
 fn main() {
@@ -57,11 +73,24 @@ fn main() {
 
     match &cli.command {
         Commands::Search { name } => {
-            let p: Vec<Entry> = serde_json::from_str(EMOJI_DATA).unwrap();
+            let p: Vec<Entry> = parsed();
             for e in p.iter() {
                 if e.contains_needle(name) {
-                    println!("{}     {} ", e.to_string(), e.name);
+                    println!("{}     {}", e.to_string(), e.name.to_lowercase());
                 }
+            }
+        }
+        Commands::List => {
+            let mut p: Vec<Entry> = parsed();
+            p.sort_by(Entry::sort_category_subcategory_name);
+            for e in p.iter() {
+                println!(
+                    "{ }     {} ({}, {})",
+                    e.to_string(),
+                    e.name.to_lowercase(),
+                    e.category,
+                    e.subcategory
+                );
             }
         }
     }
