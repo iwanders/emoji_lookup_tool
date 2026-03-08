@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Read;
 const EMOJI_DATA: &str = include_str!("../thirdparty/iamcal_emoji-data_emoji.json");
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -56,6 +55,7 @@ struct UnicodePoints {
     code_points: Vec<u32>,
 }
 impl UnicodePoints {
+    /// To the noto hex string for the filename.
     fn to_hex_u16_noto(&self) -> String {
         // 0030_20e3
         let up_to = if self.code_points.last().unwrap() == &0xfe0f {
@@ -69,6 +69,22 @@ impl UnicodePoints {
             .map(|a| format!("{a:0>4x}"))
             .collect::<Vec<_>>()
             .join("_")
+    }
+    /// To the iamcal emoji data unified value.
+    fn to_hex_unified(&self) -> String {
+        // 0030-20E3
+        self.code_points
+            .iter()
+            .map(|a| format!("{a:0>4X}"))
+            .collect::<Vec<_>>()
+            .join("-")
+    }
+    /// To escaped string hex thing.
+    fn to_escaped_hex(&self) -> String {
+        self.code_points
+            .iter()
+            .map(|a| format!("\\u{a:0>4x}"))
+            .collect::<String>()
     }
 }
 
@@ -160,6 +176,11 @@ enum Commands {
         out_dir: PathBuf,
     },
 
+    Info {
+        /// The emoji character to retrieve.
+        emoji: Vec<String>,
+    },
+
     /// Dump the entire emoji list, because why not, then you can grep to your heart's content.
     List,
 }
@@ -210,10 +231,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let data = res.bytes()?;
 
                 let mut out_dir = out_dir.clone();
+                fs::create_dir_all(&out_dir)?;
                 out_dir.push(file_name);
                 print!("  Writing to {:?}", out_dir);
                 fs::write(out_dir, data)?;
                 println!(" done!");
+            }
+        }
+        Commands::Info { emoji } => {
+            let noto = NotoFont::new();
+            for emoji in emoji.iter() {
+                let path = noto.to_path(emoji);
+                println!("{emoji}");
+
+                println!("           emoji: {:}", emoji);
+                println!("  codepoints dec: {:?}", path.code_points);
+                println!("  codepoints hex: {:0>4x?}", path.code_points);
+                // \u1F3F4\u200D\u2620\uFE0F
+                println!("  escaped hex   : {:}", path.to_escaped_hex());
+                let url_png = noto.to_url(&path, NotoGlyphType::Png);
+                let url_svg = noto.to_url(&path, NotoGlyphType::Svg);
+                println!("        noto png: {:}", url_png);
+                println!("        noto svg: {:}", url_svg);
+
+                let p: Vec<Entry> = parsed();
+                for e in p.iter() {
+                    if path.to_hex_unified() == e.unified {
+                        println!("{: >16}: {}", "name", e.name);
+                        println!("{: >16}: {}", "category", e.category);
+                        println!("{: >16}: {}", "subcategory", e.subcategory);
+                        println!("{: >16}: {}", "short_name", e.short_name);
+                        if e.short_names.len() != 1 {
+                            println!("{: >16}: {:?}", "short_names", e.short_names);
+                        }
+                        println!("{: >16}: :{}:", "slack", e.short_name);
+                    }
+                }
             }
         }
     }
