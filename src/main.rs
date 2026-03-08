@@ -1,11 +1,14 @@
+use std::path::PathBuf;
+
 // This has a nice comparison of shortcodes.
 // https://emojibase.dev/shortcodes/
 //
 // Unicode reference: https://github.com/unicode-org/cldr-json
 // Slack: https://github.com/iamcal/emoji-data
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
-
+use std::fs;
+use std::io::Read;
 const EMOJI_DATA: &str = include_str!("../thirdparty/iamcal_emoji-data_emoji.json");
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,47 +53,50 @@ impl Entry {
 
 #[derive(Debug, Clone)]
 struct UnicodePoints {
-    points: Vec<u32>,
+    code_points: Vec<u32>,
 }
 impl UnicodePoints {
-    fn to_hex_u16(&self) -> String {
+    fn to_hex_u16_noto(&self) -> String {
         // 0030_20e3
-        self.points
+        let up_to = if self.code_points.last().unwrap() == &0xfe0f {
+            self.code_points.len() - 1
+        } else {
+            self.code_points.len()
+        };
+        self.code_points
             .iter()
+            .take(up_to)
             .map(|a| format!("{a:0>4x}"))
             .collect::<Vec<_>>()
             .join("_")
     }
 }
 
-#[derive(Debug, Clone)]
-enum PngResolution {
-    Px32,
-    Px72,
-    Px128,
-    Px512,
-}
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone, ValueEnum, Default)]
 enum NotoGlyphType {
     Svg,
-    Png(PngResolution),
+    #[default]
+    Png,
+    Png32,
+    Png72,
+    Png128,
+    Png512,
 }
 impl NotoGlyphType {
     pub fn to_extension(&self) -> &'static str {
         match self {
             NotoGlyphType::Svg => "svg",
-            NotoGlyphType::Png(_) => "png",
+            _ => "png",
         }
     }
     pub fn to_subpath(&self) -> &'static str {
         match self {
             NotoGlyphType::Svg => "svg",
-            NotoGlyphType::Png(v) => match v {
-                PngResolution::Px32 => "png/32",
-                PngResolution::Px72 => "png/72",
-                PngResolution::Px128 => "png/128",
-                PngResolution::Px512 => "png/512",
-            },
+            NotoGlyphType::Png => "png/512",
+            NotoGlyphType::Png32 => "png/32",
+            NotoGlyphType::Png72 => "png/72",
+            NotoGlyphType::Png128 => "png/128",
+            NotoGlyphType::Png512 => "png/512",
         }
     }
 }
@@ -102,23 +108,27 @@ impl NotoFont {
         Self {}
     }
     pub fn to_path(&self, v: &str) -> UnicodePoints {
-        let mut points = vec![];
+        let mut code_points = vec![];
         for c in v.chars() {
-            points.push(c as u32);
+            code_points.push(c as u32);
         }
-        UnicodePoints { points }
+        UnicodePoints { code_points }
+    }
+
+    pub fn file_name(&self, codepoints: &UnicodePoints, format: NotoGlyphType) -> String {
+        let ext = format.to_extension();
+        format!("emoji_u{}.{ext}", codepoints.to_hex_u16_noto())
     }
     pub fn to_url(&self, codepoints: &UnicodePoints, format: NotoGlyphType) -> String {
         // https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/heads/main/svg/emoji_u0023.svg
         // https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/tags/v2.051/svg/emoji_u0023.svg
         // https://raw.githubusercontent.com/googlefonts/noto-emoji/8998f5dd683424a73e2314a8c1f1e359c19e8742/svg/emoji_u0023.svg
         // Lets just use main.
-        let ext = format.to_extension();
         let subpath = format.to_subpath();
         format!(
-            "{}/refs/heads/main/{subpath}/emoji_u{}.{ext}",
+            "{}/refs/heads/main/{subpath}/{}",
             Self::BASE_URL,
-            codepoints.to_hex_u16()
+            self.file_name(codepoints, format)
         )
     }
 }
@@ -137,7 +147,18 @@ enum Commands {
     Search { name: String },
 
     /// Retrieve the emoji from the noto font github repo at https://github.com/googlefonts/noto-emoji
-    Noto { emoji: String },
+    Noto {
+        /// The emoji character to retrieve.
+        emoji: Vec<String>,
+
+        /// The format to retrieve, png defaults to png512.
+        #[arg(short, long, value_enum)]
+        format: Option<NotoGlyphType>,
+
+        /// The output directory to write the retrieved glyph to.
+        #[arg(short, long, default_value = "/tmp/")]
+        out_dir: PathBuf,
+    },
 
     /// Dump the entire emoji list, because why not, then you can grep to your heart's content.
     List,
@@ -147,7 +168,7 @@ fn parsed() -> Vec<Entry> {
     serde_json::from_str(EMOJI_DATA).unwrap()
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match &cli.command {
@@ -172,14 +193,29 @@ fn main() {
                 );
             }
         }
-        Commands::Noto { emoji } => {
+        Commands::Noto {
+            emoji,
+            format,
+            out_dir,
+        } => {
             let noto = NotoFont::new();
-            let path = noto.to_path(emoji);
-            println!("Converted {emoji} to: {path:?}");
-            println!(
-                "url: {:?}",
-                noto.to_url(&path, NotoGlyphType::Png(PngResolution::Px128))
-            );
+            for emoji in emoji.iter() {
+                let path = noto.to_path(emoji);
+                println!("{emoji} -> {path:?}");
+                let format = format.unwrap_or_default();
+                let url = noto.to_url(&path, format);
+                let file_name = noto.file_name(&path, format);
+                println!("  {:}", url);
+                let res = reqwest::blocking::get(url)?;
+                let data = res.bytes()?;
+
+                let mut out_dir = out_dir.clone();
+                out_dir.push(file_name);
+                print!("  Writing to {:?}", out_dir);
+                fs::write(out_dir, data)?;
+                println!(" done!");
+            }
         }
     }
+    Ok(())
 }
