@@ -163,12 +163,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Search emoji's, matching by the provided string in name and short names.
-    Search { name: String },
+    /// Search emoji's, matching by the provided string in name and short names. Underscores are mapped to spaces and
+    /// start and end semicolon are ignored.
+    Search { search: Vec<String> },
 
     /// Retrieve the emoji from the noto font github repo at https://github.com/googlefonts/noto-emoji
     Noto {
-        /// The emoji character to retrieve.
+        /// The emoji character to retrieve, or a needle to search for.
         emoji_or_search: Vec<String>,
 
         /// The format to retrieve, png defaults to png512.
@@ -181,7 +182,7 @@ enum Commands {
     },
 
     Info {
-        /// The emoji character to retrieve.
+        /// The emoji character to show the info for or search needle.
         emoji_or_search: Vec<String>,
     },
 
@@ -192,6 +193,7 @@ enum Commands {
 /// Do a search for the provided needle, usually 'party' or something like that, ':' symbols are ignored.
 fn find_matches(needle: &str) -> Vec<Entry> {
     let needle = needle.trim_start_matches(":").trim_end_matches(":");
+
     let p: Vec<Entry> = parsed();
     let mut res = vec![];
     for e in p.iter() {
@@ -208,6 +210,7 @@ fn find_matches(needle: &str) -> Vec<Entry> {
 fn collect_all(needles: &[String]) -> Vec<Entry> {
     let mut res = vec![];
     for needle in needles {
+        let needle = &needle.replace("_", " ");
         for v in find_matches(needle) {
             if !res.contains(&v) {
                 res.push(v);
@@ -221,8 +224,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Search { name } => {
-            for e in find_matches(name) {
+        Commands::Search { search } => {
+            let matches = collect_all(search);
+            for e in matches {
                 println!("{}     {}", e.to_string(), e.name.to_lowercase());
             }
         }

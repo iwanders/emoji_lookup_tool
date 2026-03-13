@@ -2,11 +2,20 @@
 
 For when you just want to copy paste an emoji and know it is called `party` - something...
 ```
-$ cargo r -- search party
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
-     Running `target/debug/emoji_lookup_tool search party`
-🎉     PARTY POPPER
-...
+$ ./target/release/emoji_lookup_tool search party
+🎉     party popper
+👯‍♀️     women with bunny ears
+👯‍♂️     men with bunny ears
+🥳     face with party horn and party hat
+$ ./target/release/emoji_lookup_tool search :party_
+🎉     party popper
+🥳     face with party horn and party hat
+$ time ./target/release/emoji_lookup_tool search :party_popper:
+🎉     party popper
+
+real	0m0.009s
+
+
 ```
 
 Uses data from [https://github.com/iamcal/emoji-data](https://github.com/iamcal/emoji-data), so slack short names, but
@@ -23,6 +32,28 @@ $ emoji_lookup_tool noto 🎉
   https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/heads/main/png/512/emoji_u1f389.png
   Writing to "/tmp/emoji_u1f389.png" done!
 ```
+Also supports `emoji_lookup_tool noto :party_popper:`, or search terms there.
+
+
+And an info command:
+```
+$ ./target/release/emoji_lookup_tool info :party_popper:
+🎉
+           emoji: 🎉
+  codepoints dec: [127881]
+  codepoints hex: [1f389]
+  escaped hex   : \u1f389
+        noto png: https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/heads/main/png/512/emoji_u1f389.png
+        noto svg: https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/heads/main/svg/emoji_u1f389.svg
+            name: PARTY POPPER
+        category: Activities
+     subcategory: event
+      short_name: tada
+           slack: :tada:
+
+```
+
+
 
 
 # License
