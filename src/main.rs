@@ -194,6 +194,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match &cli.command {
         Commands::Search { name } => {
+            let name = name.trim_start_matches(":").trim_end_matches(":");
+
             let p: Vec<Entry> = parsed();
             for e in p.iter() {
                 if e.contains_needle(name) {
