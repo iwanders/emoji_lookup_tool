@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 const EMOJI_DATA: &str = include_str!("../thirdparty/iamcal_emoji-data_emoji.json");
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct Entry {
     name: String,
     short_name: &'static str,
@@ -48,6 +48,10 @@ impl Entry {
             &right.name,
         ))
     }
+}
+/// Return the entire emoji database.
+fn parsed() -> Vec<Entry> {
+    serde_json::from_str(EMOJI_DATA).unwrap()
 }
 
 #[derive(Debug, Clone)]
@@ -165,7 +169,7 @@ enum Commands {
     /// Retrieve the emoji from the noto font github repo at https://github.com/googlefonts/noto-emoji
     Noto {
         /// The emoji character to retrieve.
-        emoji: Vec<String>,
+        emoji_or_search: Vec<String>,
 
         /// The format to retrieve, png defaults to png512.
         #[arg(short, long, value_enum)]
@@ -178,15 +182,39 @@ enum Commands {
 
     Info {
         /// The emoji character to retrieve.
-        emoji: Vec<String>,
+        emoji_or_search: Vec<String>,
     },
 
     /// Dump the entire emoji list, because why not, then you can grep to your heart's content.
     List,
 }
 
-fn parsed() -> Vec<Entry> {
-    serde_json::from_str(EMOJI_DATA).unwrap()
+/// Do a search for the provided needle, usually 'party' or something like that, ':' symbols are ignored.
+fn find_matches(needle: &str) -> Vec<Entry> {
+    let needle = needle.trim_start_matches(":").trim_end_matches(":");
+    let p: Vec<Entry> = parsed();
+    let mut res = vec![];
+    for e in p.iter() {
+        let name_contains = e.contains_needle(needle);
+        let emoji_equals = e.to_string() == needle;
+        if name_contains || emoji_equals {
+            res.push(e.clone());
+        }
+    }
+    res
+}
+
+/// Collect all emoji's that match any of the needles, without duplicates.
+fn collect_all(needles: &[String]) -> Vec<Entry> {
+    let mut res = vec![];
+    for needle in needles {
+        for v in find_matches(needle) {
+            if !res.contains(&v) {
+                res.push(v);
+            }
+        }
+    }
+    res
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -194,13 +222,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match &cli.command {
         Commands::Search { name } => {
-            let name = name.trim_start_matches(":").trim_end_matches(":");
-
-            let p: Vec<Entry> = parsed();
-            for e in p.iter() {
-                if e.contains_needle(name) {
-                    println!("{}     {}", e.to_string(), e.name.to_lowercase());
-                }
+            for e in find_matches(name) {
+                println!("{}     {}", e.to_string(), e.name.to_lowercase());
             }
         }
         Commands::List => {
@@ -217,12 +240,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Noto {
-            emoji,
+            emoji_or_search,
             format,
             out_dir,
         } => {
             let noto = NotoFont::new();
-            for emoji in emoji.iter() {
+            let matches = collect_all(emoji_or_search);
+            for entry in matches {
+                let emoji = &entry.to_string();
                 let path = noto.to_path(emoji);
                 println!("{emoji} -> {path:?}");
                 let format = format.unwrap_or_default();
@@ -240,9 +265,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(" done!");
             }
         }
-        Commands::Info { emoji } => {
+        Commands::Info { emoji_or_search } => {
             let noto = NotoFont::new();
-            for emoji in emoji.iter() {
+            let matches = collect_all(emoji_or_search);
+            for entry in matches {
+                let emoji = &entry.to_string();
                 let path = noto.to_path(emoji);
                 println!("{emoji}");
 
