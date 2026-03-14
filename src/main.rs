@@ -32,7 +32,7 @@ impl Entry {
         false
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_emoji(&self) -> String {
         let mut z = String::with_capacity(4);
         for p in self.unified.split("-") {
             let single_byte = u32::from_str_radix(p, 16).unwrap();
@@ -49,6 +49,12 @@ impl Entry {
         ))
     }
 }
+impl std::fmt::Display for Entry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_emoji())
+    }
+}
+
 /// Return the entire emoji database.
 fn parsed() -> Vec<Entry> {
     serde_json::from_str(EMOJI_DATA).unwrap()
@@ -103,13 +109,13 @@ enum NotoGlyphType {
     Png512,
 }
 impl NotoGlyphType {
-    pub fn to_extension(&self) -> &'static str {
+    pub fn to_extension(self) -> &'static str {
         match self {
             NotoGlyphType::Svg => "svg",
             _ => "png",
         }
     }
-    pub fn to_subpath(&self) -> &'static str {
+    pub fn to_subpath(self) -> &'static str {
         match self {
             NotoGlyphType::Svg => "svg",
             NotoGlyphType::Png => "png/512",
@@ -227,7 +233,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Search { search } => {
             let matches = collect_all(search);
             for e in matches {
-                println!("{}     {}", e.to_string(), e.name.to_lowercase());
+                println!("{e}     {}", e.name.to_lowercase());
             }
         }
         Commands::List => {
@@ -235,8 +241,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             p.sort_by(Entry::sort_category_subcategory_name);
             for e in p.iter() {
                 println!(
-                    "{ }     {} ({}, {})",
-                    e.to_string(),
+                    "{e}     {} ({}, {})",
                     e.name.to_lowercase(),
                     e.category,
                     e.subcategory
