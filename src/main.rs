@@ -273,7 +273,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let url = noto.to_url(&path, format);
                 let file_name = noto.file_name(&path, format);
                 println!("  {:}", url);
-                let res = reqwest::blocking::get(url)?;
+                let res = reqwest::blocking::get(url)?.error_for_status()?;
                 let data = res.bytes()?;
 
                 let mut out_dir = out_dir.clone();
