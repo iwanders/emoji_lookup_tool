@@ -107,6 +107,10 @@ enum NotoGlyphType {
     Png72,
     Png128,
     Png512,
+    Png3d32,
+    Png3d72,
+    Png3d128,
+    Png3d512,
 }
 impl NotoGlyphType {
     pub fn to_extension(self) -> &'static str {
@@ -117,12 +121,16 @@ impl NotoGlyphType {
     }
     pub fn to_subpath(self) -> &'static str {
         match self {
-            NotoGlyphType::Svg => "svg",
-            NotoGlyphType::Png => "png/512",
-            NotoGlyphType::Png32 => "png/32",
-            NotoGlyphType::Png72 => "png/72",
-            NotoGlyphType::Png128 => "png/128",
-            NotoGlyphType::Png512 => "png/512",
+            NotoGlyphType::Svg => "2D/svg",
+            NotoGlyphType::Png => "2D/png/512",
+            NotoGlyphType::Png32 => "2D/png/32",
+            NotoGlyphType::Png72 => "2D/png/72",
+            NotoGlyphType::Png128 => "2D/png/128",
+            NotoGlyphType::Png512 => "2D/png/512",
+            NotoGlyphType::Png3d32 => "3D/png/32",
+            NotoGlyphType::Png3d72 => "3D/png/72",
+            NotoGlyphType::Png3d128 => "3D/png/128",
+            NotoGlyphType::Png3d512 => "3D/png/512",
         }
     }
 }
@@ -146,6 +154,8 @@ impl NotoFont {
         format!("emoji_u{}.{ext}", codepoints.to_hex_u16_noto())
     }
     pub fn to_url(&self, codepoints: &UnicodePoints, format: NotoGlyphType) -> String {
+        // https://github.com/googlefonts/noto-emoji/blob/main/2D/svg/emoji_u0023.svg
+        // https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/heads/main/2D/svg/emoji_u0023.svg
         // https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/heads/main/svg/emoji_u0023.svg
         // https://raw.githubusercontent.com/googlefonts/noto-emoji/refs/tags/v2.051/svg/emoji_u0023.svg
         // https://raw.githubusercontent.com/googlefonts/noto-emoji/8998f5dd683424a73e2314a8c1f1e359c19e8742/svg/emoji_u0023.svg
@@ -174,7 +184,7 @@ enum Commands {
     Search { search: Vec<String> },
 
     /// Retrieve the emoji from the noto font github repo at https://github.com/googlefonts/noto-emoji
-    Noto {
+    Download {
         /// The emoji character to retrieve, or a needle to search for.
         emoji_or_search: Vec<String>,
 
@@ -248,7 +258,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
-        Commands::Noto {
+        Commands::Download {
             emoji_or_search,
             format,
             out_dir,
